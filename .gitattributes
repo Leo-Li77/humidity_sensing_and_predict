@@ -1,0 +1,6 @@
+# Shell scripts are run on the Pi and must keep LF endings.
+*.sh text eol=lf
+# Batch files are run on Windows and must keep CRLF endings.
+*.bat text eol=crlf
+*.png binary
+*.pt binary

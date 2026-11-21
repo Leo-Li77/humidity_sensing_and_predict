@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soil Moisture Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"></div>
+
+<aside class="rail">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <span class="brand-name">Soil&nbsp;Console</span>
+  </div>
+  <nav class="nav">
+    <button class="nav-item is-active" data-go="dashboard"><i data-icon="grid"></i><span>Overview</span></button>
+    <button class="nav-item" data-go="collect"><i data-icon="drop"></i><span>Collect</span></button>
+    <button class="nav-item" data-go="data"><i data-icon="table"></i><span>Data</span></button>
+    <button class="nav-item" data-go="analysis"><i data-icon="chart"></i><span>Analysis</span></button>
+    <button class="nav-item" data-go="model"><i data-icon="brain"></i><span>Model</span></button>
+    <button class="nav-item" data-go="history"><i data-icon="clock"></i><span>History</span></button>
+  </nav>
+  <div class="rail-foot">
+    <div class="link-state" id="linkState"><span class="dot"></span><span id="linkText">connecting</span></div>
+  </div>
+</aside>
+
+<main class="stage">
+  <header class="topbar">
+    <div>
+      <h1 id="viewTitle">Overview</h1>
+      <p class="subtle" id="viewSub">Live readings from the Raspberry Pi</p>
+    </div>
+    <div class="topbar-right">
+      <div class="pill" id="driverPill">driver &middot; &mdash;</div>
+      <div class="pill" id="clockPill">&mdash;</div>
+    </div>
+  </header>
+
+  <!-- ============================ OVERVIEW ============================ -->
+  <section class="view is-active" data-view="dashboard">
+    <div class="cards">
+      <article class="card metric">
+        <span class="metric-label">Soil moisture</span>
+        <span class="metric-value"><span id="mMoisture">&mdash;</span><small>%</small></span>
+        <span class="metric-note" id="mMoistureNote">latest reading</span>
+      </article>
+      <article class="card metric">
+        <span class="metric-label">Temperature</span>
+        <span class="metric-value"><span id="mTemp">&mdash;</span><small>&deg;C</small></span>
+        <span class="metric-note" id="mTempNote">ambient</span>
+      </article>
+      <article class="card metric">
+        <span class="metric-label">Air humidity</span>
+        <span class="metric-value"><span id="mHumidity">&mdash;</span><small>%</small></span>
+        <span class="metric-note" id="mHumidityNote">ambient</span>
+      </article>
+      <article class="card metric">
+        <span class="metric-label">Readings</span>
+        <span class="metric-value"><span id="mRows">&mdash;</span><small>rows</small></span>
+        <span class="metric-note" id="mRowsNote">since the last clear</span>
+      </article>
+    </div>
+
+    <div class="split">
+      <article class="card chart-card">
+        <div class="card-head">
+          <h2>Moisture over time</h2>
+          <div class="legend" id="seriesLegend"></div>
+        </div>
+        <div class="chart" id="chartSeries"></div>
+      </article>
+
+      <article class="card gauge-card">
+        <div class="card-head"><h2>Current level</h2></div>
+        <div class="gauge" id="gaugeMoisture"></div>
+        <p class="gauge-foot" id="gaugeFoot">Waiting for the first reading.</p>
+      </article>
+    </div>
+
+    <article class="card chart-card">
+      <div class="card-head">
+        <h2>Ambient conditions</h2>
+        <span class="subtle small">temperature and humidity reported alongside each sample</span>
+      </div>
+      <div class="chart chart-short" id="chartAmbient"></div>
+    </article>
+  </section>
+
+  <!-- ============================= COLLECT ============================ -->
+  <section class="view" data-view="collect">
+    <div class="split split-wide">
+      <article class="card">
+        <div class="card-head"><h2>New collection</h2></div>
+        <form id="collectForm" class="form">
+          <label class="field">
+            <span>Sensor</span>
+            <select name="driver" id="driverSelect">
+              <option value="ads1115">ADS1115 analog (continuous)</option>
+              <option value="simulate">Simulator (no hardware)</option>
+              <option value="gpio">GPIO digital (wet / dry only)</option>
+            </select>
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span>Interval</span>
+              <select name="interval">
+                <option value="5">5 minutes</option>
+                <option value="10">10 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30" selected>30 minutes</option>
+                <option value="60">60 minutes</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Duration</span>
+              <select name="hours">
+                <option value="1">1 hour</option>
+                <option value="6">6 hours</option>
+                <option value="24">24 hours</option>
+                <option value="48">48 hours</option>
+                <option value="120" selected>5 days</option>
+              </select>
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="append">
+            <span>Add to the existing file instead of replacing it</span>
+          </label>
+          <label class="field" id="speedField">
+            <span>Clock</span>
+            <select name="speed" id="speedSelect">
+              <option value="1">Real time</option>
+              <option value="60">60&times; faster</option>
+              <option value="600" selected>600&times; faster</option>
+              <option value="3600">3600&times; faster</option>
+              <option value="0">No waiting</option>
+            </select>
+          </label>
+          <div class="hint" id="speedHint"></div>
+          <div class="hint" id="driverHint"></div>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary" id="startBtn">Start collection</button>
+            <button type="button" class="btn btn-ghost" id="stopBtn" disabled>Stop</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="card">
+        <div class="card-head"><h2>Progress</h2></div>
+        <div class="progress-wrap">
+          <div class="progress-ring" id="collectRing"></div>
+          <div class="progress-meta">
+            <div class="big" id="collectCount">idle</div>
+            <div class="subtle" id="collectLabel">Nothing is running.</div>
+          </div>
+        </div>
+        <div class="log" id="collectLog"><span class="subtle">Samples appear here as they arrive.</span></div>
+      </article>
+    </div>
+
+    <article class="card">
+      <div class="card-head">
+        <h2>Live stream</h2>
+        <span class="subtle small">refreshed every two seconds while a collection runs</span>
+      </div>
+      <div class="chart chart-short" id="chartLive"></div>
+    </article>
+  </section>
+
+  <!-- ============================== DATA ============================== -->
+  <section class="view" data-view="data">
+    <div class="cards cards-3">
+      <article class="card metric">
+        <span class="metric-label">Rows</span>
+        <span class="metric-value"><span id="dRows">&mdash;</span></span>
+        <span class="metric-note" id="dSpan">no data yet</span>
+      </article>
+      <article class="card metric">
+        <span class="metric-label">Moisture range</span>
+        <span class="metric-value small-value"><span id="dRange">&mdash;</span></span>
+        <span class="metric-note">minimum to maximum</span>
+      </article>
+      <article class="card metric">
+        <span class="metric-label">Mean moisture</span>
+        <span class="metric-value"><span id="dMean">&mdash;</span><small>%</small></span>
+        <span class="metric-note" id="dStd">standard deviation &mdash;</span>
+      </article>
+    </div>
+
+    <article class="card">
+      <div class="card-head">
+        <h2>Raw readings</h2>
+        <div class="actions tight">
+          <label class="btn btn-ghost file-btn">Upload CSV<input type="file" id="uploadInput" accept=".csv" hidden></label>
+          <a class="btn btn-ghost" href="/api/download?what=raw">Download raw</a>
+          <a class="btn btn-ghost" href="/api/download?what=processed">Download processed</a>
+          <button class="btn btn-danger" id="clearBtn">Clear</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="dataTable">
+          <thead><tr><th>#</th><th>Timestamp</th><th>Moisture %</th><th>Temp &deg;C</th><th>Humidity %</th></tr></thead>
+          <tbody><tr><td colspan="5" class="empty">No rows yet.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button class="btn btn-ghost" id="pagePrev">&larr; Newer</button>
+        <span class="subtle" id="pageInfo">page 1</span>
+        <button class="btn btn-ghost" id="pageNext">Older &rarr;</button>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============================ ANALYSIS ============================ -->
+  <section class="view" data-view="analysis">
+    <div class="cards cards-4" id="statCards">
+      <article class="card metric"><span class="metric-label">Samples</span><span class="metric-value"><span id="sCount">&mdash;</span></span><span class="metric-note">rows read</span></article>
+      <article class="card metric"><span class="metric-label">Mean</span><span class="metric-value"><span id="sMean">&mdash;</span><small>%</small></span><span class="metric-note">soil moisture</span></article>
+      <article class="card metric"><span class="metric-label">Std deviation</span><span class="metric-value"><span id="sStd">&mdash;</span><small>%</small></span><span class="metric-note">spread of the readings</span></article>
+      <article class="card metric"><span class="metric-label">Dryest</span><span class="metric-value"><span id="sMin">&mdash;</span><small>%</small></span><span class="metric-note">lowest reading</span></article>
+    </div>
+
+    <div class="split">
+      <article class="card chart-card">
+        <div class="card-head"><h2>Distribution</h2><span class="subtle small">how often each moisture band occurs</span></div>
+        <div class="chart" id="chartHist"></div>
+      </article>
+      <article class="card chart-card">
+        <div class="card-head"><h2>Autocorrelation</h2><span class="subtle small">after one difference, a bump near 24&nbsp;h is the daily cycle</span></div>
+        <div class="chart" id="chartAcf"></div>
+      </article>
+    </div>
+
+    <article class="card">
+      <div class="card-head">
+        <h2>Diagnostics</h2>
+        <div class="actions tight">
+          <button class="btn btn-primary" id="preprocessBtn">Run preprocessing</button>
+          <button class="btn btn-ghost" id="analyzeBtn">Regenerate figures</button>
+        </div>
+      </div>
+      <div class="stat-grid" id="statGrid"></div>
+      <div class="log" id="analysisLog"><span class="subtle">Script output appears here.</span></div>
+    </article>
+  </section>
+
+  <!-- ============================== MODEL ============================= -->
+  <section class="view" data-view="model">
+    <div class="cards cards-4">
+      <article class="card metric"><span class="metric-label">Ridge MAE</span><span class="metric-value"><span id="kLinMae">&mdash;</span><small>%</small></span><span class="metric-note" id="kLinR2">R&sup2; &mdash;</span></article>
+      <article class="card metric"><span class="metric-label">LSTM MAE</span><span class="metric-value"><span id="kLstmMae">&mdash;</span><small>%</small></span><span class="metric-note" id="kLstmR2">R&sup2; &mdash;</span></article>
+      <article class="card metric"><span class="metric-label">Lead time</span><span class="metric-value"><span id="kHorizon">&mdash;</span><small>h</small></span><span class="metric-note">forecast distance</span></article>
+      <article class="card metric"><span class="metric-label">Test rows</span><span class="metric-value"><span id="kTest">&mdash;</span></span><span class="metric-note" id="kParams">parameters &mdash;</span></article>
+    </div>
+
+    <div class="split">
+      <article class="card">
+        <div class="card-head"><h2>Train</h2></div>
+        <p class="subtle small">Fits the ridge baseline and the LSTM on the processed file. Takes about twenty seconds on a Raspberry Pi 4.</p>
+        <div class="form">
+          <label class="field">
+            <span>Lead time</span>
+            <select id="horizonSelect">
+              <option value="3">3 hours</option>
+              <option value="6">6 hours</option>
+              <option value="12" selected>12 hours</option>
+              <option value="24">24 hours</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="noLstm"><span>Baseline only, skip the LSTM</span></label>
+          <div class="actions">
+            <button class="btn btn-primary" id="trainBtn">Train both models</button>
+          </div>
+        </div>
+        <div class="log" id="trainLog"><span class="subtle">Training output appears here.</span></div>
+      </article>
+
+      <article class="card chart-card">
+        <div class="card-head"><h2>Error comparison</h2><span class="subtle small">lower is better</span></div>
+        <div class="chart" id="chartMetrics"></div>
+      </article>
+    </div>
+
+    <article class="card">
+      <div class="card-head"><h2>What the numbers mean</h2></div>
+      <div class="stat-grid" id="metricGrid"></div>
+    </article>
+  </section>
+
+  <!-- ============================= HISTORY ============================ -->
+  <section class="view" data-view="history">
+    <article class="card">
+      <div class="card-head">
+        <h2>Every run</h2>
+        <div class="actions tight">
+          <select id="historyFilter" class="inline-select">
+            <option value="">All kinds</option>
+            <option value="collect">Collections</option>
+            <option value="preprocess">Preprocessing</option>
+            <option value="train">Training</option>
+            <option value="import">Imports</option>
+          </select>
+          <button class="btn btn-ghost" id="historyRefresh">Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="historyTable">
+          <thead><tr><th>When</th><th>Kind</th><th>Detail</th><th>Result</th><th></th></tr></thead>
+          <tbody><tr><td colspan="5" class="empty">Nothing recorded yet.</td></tr></tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "soilcast"
+version = "1.0.0"
+description = "Soil moisture monitoring and 12-hour forecasting on a Raspberry Pi"
+readme = "README.md"
+requires-python = ">=3.10"
+# The dependencies are read from requirements.txt so that the launchers, the Pi
+# and this file cannot drift apart. requirements-pi.txt is the shorter list used
+# on the board, where torch is left out.
+dynamic = ["dependencies"]
+
+[project.scripts]
+soilcast = "soilcast.cli:main"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["soilcast*"]
+
+[tool.setuptools.package-data]
+"soilcast.web" = ["templates/*.html", "static/*.css", "static/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

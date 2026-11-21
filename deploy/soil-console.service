@@ -1,0 +1,18 @@
+[Unit]
+Description=Soil Console, the web interface for the moisture project
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/ProjectSem3_2026
+# Leave the password empty on a home network. Set it here before forwarding the
+# port from the router, and use the same value in the browser prompt.
+Environment=SOIL_PASSWORD=
+ExecStart=/home/pi/ProjectSem3_2026/.venv/bin/python -m soilcast web --no-browser
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

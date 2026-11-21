@@ -1,0 +1,11 @@
+# Packages for the Raspberry Pi, where the console only has to record data and
+# serve the page. Torch is left out on purpose: it is a few hundred megabytes on
+# aarch64 and the LSTM can be trained on a laptop if the Pi runs short of space.
+# Add torch here, or install it by hand, to train both models on the board.
+numpy>=2.0
+pandas>=2.2
+scipy>=1.13
+scikit-learn>=1.5
+matplotlib>=3.9
+flask>=3.0
+waitress>=3.0
