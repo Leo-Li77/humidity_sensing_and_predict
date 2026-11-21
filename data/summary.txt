@@ -1,0 +1,12 @@
+Descriptive statistics
+=====================
+period    2026-11-17 01:00:00 to 2026-11-21 18:30:00
+duration  113.5 h
+samples   228
+
+     variable unit   n  mean   std   min    q1  median    q3   max
+Soil moisture    % 228 31.18 17.42  8.71 16.78   24.54 44.13 77.95
+  Temperature    C 228 20.68  0.67 19.92 20.09   20.50 21.37 21.77
+ Air humidity    % 228 25.74  0.46 24.66 25.51   25.71 25.82 26.68
+
+watering threshold used in the figures: 30 %

@@ -1,0 +1,29 @@
+# virtual environments
+.venv/
+venv/
+env/
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# model weights: large and reproducible from train.py
+models/*.pt
+models/*.pth
+
+# raw downloads of external data: large, refetchable with fetch_ambient.py.
+# The reduced 24-row table (ambient.csv) is kept, so the pipeline runs offline.
+data/external/*.zip
+data/external/*.txt
+
+# secrets
+raspberry_pi_config.txt
+.env
+
+# editors and os
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

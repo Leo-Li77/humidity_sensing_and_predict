@@ -1,0 +1,29 @@
+{
+  "lead_time_hours": 12,
+  "lead_time_steps": 24,
+  "sample_interval_min": 30,
+  "rows": 204,
+  "train_rows": 139,
+  "test_rows": 41,
+  "gap_rows": 24,
+  "sensor_driver": "simulate",
+  "ambient_source": "dataset",
+  "results": {
+    "linear": {
+      "mae": 0.4730186221813253,
+      "rmse": 0.5820192084698006,
+      "r2": 0.9542593377303982,
+      "n": 41
+    },
+    "lstm": {
+      "mae": 1.013600640738883,
+      "rmse": 1.1089838166388604,
+      "r2": 0.8339349542262111,
+      "n": 41
+    }
+  },
+  "lstm_residual_band": {
+    "low": -1.3528275032043453,
+    "high": 1.3961002731323262
+  }
+}

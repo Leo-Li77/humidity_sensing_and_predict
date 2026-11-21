@@ -1,0 +1,15 @@
+Data quality report
+===================
+first reading      2026-11-16 19:00:00
+last reading       2026-11-21 18:30:00
+span               119.5 h
+rows read          240
+rows on grid       240
+gaps interpolated  0
+rows still empty   0
+median step        30.0 min
+max step           30.0 min
+
+moisture  min 8.7  max 78.0  mean 31.2
+temperature min 19.9  max 21.8
+humidity  min 24.7  max 26.7
