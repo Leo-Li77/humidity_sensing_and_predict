@@ -1,10 +1,12 @@
-# Soil Moisture Monitoring and Forecasting on a Raspberry Pi
+# ProjectSem3_2026 — Soil Moisture Monitoring and Forecasting on a Raspberry Pi
 
 A potted plant, an FC-28 soil moisture probe and a Raspberry Pi. The probe is read
 every 30 minutes for several days without watering, the readings are cleaned, and
 two models forecast the soil moisture 12 hours ahead: a linear regression as the
 baseline and a small LSTM as the model that is supposed to find the daily pattern
 the baseline cannot.
+
+Semester 3 project, NUIST / SETU.
 
 ---
 
@@ -28,26 +30,44 @@ DHT sensor or to a synthetic curve, and whatever is set is recorded in
 
 ## Hardware
 
+There are two ways to wire the same probe, and they produce different data. Pick
+one before starting a run.
+
+| Wiring | FC-28 | Extra part | Driver | Data |
+|---|---|---|---|---|
+| digital | VCC 5 V, GND, **D0 → GPIO 4** | none | `--driver gpio` | 100 or 0 |
+| analog | VCC 3.3 V, GND, **AO → ADS1115 A0** | ADS1115 on I2C | `--driver ads1115` | 0-100 % |
+
 | Part | Connection | Note |
 |---|---|---|
 | Raspberry Pi 4 | — | any model with a 40-pin header works |
-| FC-28 soil moisture probe | VCC 3.3 V, GND, AO to the ADC, DO to GPIO17 | see below |
-| ADS1115 ADC | I2C: SDA GPIO2, SCL GPIO3, address 0x48 | required for a continuous reading |
+| FC-28 soil moisture probe | see the table above | the module has both outputs |
+| ADS1115 ADC | I2C: SDA GPIO2, SCL GPIO3, ADDR to GND (0x48) | only for the analog wiring |
 | Potted plant | — | not watered for the duration of the run |
 
 The FC-28 has two outputs and they are not equivalent.
 
-- **AO** is the analog voltage, which falls as the soil gets wetter. It gives a
+- **D0** is a single bit set by the comparator on the board. Turn the
+  potentiometer until the detection LED just lights: that point becomes the
+  "needs water" threshold. It reports wet or dry and nothing in between, so it
+  cannot produce a drying curve, and the models cannot be fitted on it. This is
+  the wiring the course notes describe.
+- **A0** is the analog voltage, which falls as the soil gets wetter. It gives a
   continuous reading, but the Pi has no ADC of its own, so it has to go through an
   ADS1115 or an MCP3008.
-- **DO** is a single bit set by the comparator on the module. It reports wet or dry
-  and nothing in between, so it cannot produce a drying curve. `--driver gpio`
-  exists to prove the wiring works, not for the experiments.
 
-Calibrate once before the run: hold the probe in air and note the raw ADC count,
-then in a glass of water and note it again. Put both numbers in
-`soilcast/config.py` as `ADC_DRY` and `ADC_WET`. The defaults are typical for a
-3.3 V supply and will be wrong for another probe.
+**The two wirings are mutually exclusive on VCC.** With VCC at 5 V the analog
+output can swing to nearly 5 V, which would exceed the supply of an ADC running
+at 3.3 V and can damage it. So: D0 + 5 V, or A0 + 3.3 V. There is also a smaller
+point about the digital wiring — with VCC at 5 V the high level on D0 is close to
+5 V while a GPIO pin is specified for 3.3 V. It works in practice; a 1 kΩ + 1 kΩ
+divider between D0 and the pin, or powering the module from 3.3 V and
+re-adjusting the potentiometer, removes the risk.
+
+For the analog wiring, calibrate once before the run: hold the probe in air and
+note the raw ADC count, then in a glass of water and note it again. Put both
+numbers in `soilcast/config.py` as `ADC_DRY` and `ADC_WET`. The defaults are
+typical for a 3.3 V supply and will be wrong for another probe.
 
 ## Install
 
@@ -62,11 +82,20 @@ packages above, because `python -m soilcast` finds the package in the working
 directory. `pip install -e .` is optional: it puts a plain `soilcast` command on
 the path, so `soilcast train` replaces `python -m soilcast train`.
 
-On the Raspberry Pi, install the sensor libraries as well:
+On the Raspberry Pi the GPIO stack comes from apt, not from pip. `lgpio` is the
+pin factory gpiozero uses on Bookworm, and it is built against the system Python,
+so the venv has to be created with `--system-site-packages` or gpiozero will find
+no pin factory:
 
 ```bash
-pip install adafruit-blinka adafruit-circuitpython-ads1x15 gpiozero
+sudo apt install python3-lgpio python3-gpiozero
+python3 -m venv --system-site-packages .venv
+.venv/bin/pip install -r requirements-pi.txt
+.venv/bin/pip install adafruit-blinka adafruit-circuitpython-ads1x15   # analog wiring only
 ```
+
+`scripts/start_ui.sh` does exactly this on its first run, so double-checking the
+flag by hand is only needed after a manual install.
 
 ## Run
 
@@ -119,13 +148,28 @@ on its own after a change.
 Flags worth knowing (every stage also answers `--help`):
 
 ```
-collect     --hours --interval --driver --samples --fast --append
+collect     --hours --interval --driver --samples --speed --fast --append
 preprocess  --input --output --interval
 analyze     --input --denoise-hours
 train       --input --horizon --no-lstm --seq-len
 all         --demo --reuse --collect HOURS --driver --no-lstm --skip-ambient
 web         --host --port --no-browser --password
 ```
+
+### Winding the clock forward
+
+With the simulator, `--speed N` divides the waiting by `N` and leaves the readings
+exactly where they were: one per interval. Five simulated days take twelve
+minutes at `--speed 600`, and two at `--speed 3600`, while the file is
+indistinguishable from a real run.
+
+```bash
+python -m soilcast collect --speed 600 --output data/demo.csv
+```
+
+`--fast`, or `--speed 0`, skips the waiting altogether. Speeding up a real probe
+is refused, and should be: the soil would not dry any faster, so the rows would
+simply be closer together than the moisture changed.
 
 ## Web console
 
@@ -201,7 +245,7 @@ overwrite `data/raw.csv`.
 | Screen | What it is for |
 |---|---|
 | Overview | latest reading, a gauge against the watering threshold, the moisture curve, the ambient curves |
-| Collect | driver, interval and duration; progress; a live stream of samples; stop |
+| Collect | driver, interval, duration and clock speed; progress; a live stream of samples; stop. The clock control only appears for the simulator |
 | Data | the raw table, upload a CSV, download raw or processed, clear with an archive |
 | Analysis | descriptive statistics, a histogram, an autocorrelation of the differenced series |
 | Model | train, then compare MAE, RMSE and R² for the two models |
@@ -346,6 +390,12 @@ soilcast/
 
 ## Limitations
 
+- **There is no ADC on this board, so the analog output cannot be used.** The Pi
+  has no analog input of its own; reading A0 needs an ADS1115 or an MCP3008. Only
+  the digital wiring is available here, and it reports 100 or 0 and nothing in
+  between. That is enough for a "water the plant" alarm and not enough for a
+  drying curve, so the data committed to `data/` comes from the simulator. Adding
+  the ADC is the whole of what stands between this pipeline and a real run.
 - **Temperature and humidity are not measured on site.** They come from an office
   room recorded in 2015. The soil moisture is real; the air around it is a stand-in,
   and the report says so.
@@ -372,4 +422,4 @@ soilcast/
 
 ## Author
 
-Li Jinyu, a student in NUIST
+Li Jinyu from NUIST

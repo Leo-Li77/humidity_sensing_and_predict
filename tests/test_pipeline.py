@@ -10,7 +10,11 @@ looks like a good result, so they are tested rather than assumed. Run with
 
 from __future__ import annotations
 
+import contextlib
+import csv
+import io
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -79,6 +83,28 @@ class SensorTest(unittest.TestCase):
         later = probe.read()
         self.assertLess(later, first, "the simulated soil should be drier after 48 h")
 
+    def test_gpio_driver_reads_a_low_pin_as_wet(self) -> None:
+        """The FC-28 comparator pulls D0 low when the soil is wet.
+
+        gpiozero is not installed on a laptop and the real constructor imports
+        it, so the object is built without __init__ and given a stand-in pin.
+        Getting this polarity backwards inverts the whole series while still
+        looking like a plausible reading.
+        """
+
+        class FakePin:
+            def __init__(self) -> None:
+                self.value = 0
+
+            def close(self) -> None:
+                pass
+
+        probe = sensor.GPIOSensor.__new__(sensor.GPIOSensor)
+        probe._device = FakePin()
+        self.assertEqual(probe.read(), 100.0, "a low D0 means wet soil")
+        probe._device.value = 1
+        self.assertEqual(probe.read(), 0.0, "a high D0 means the soil has dried")
+
 
 class GridTest(unittest.TestCase):
     def test_resampling_produces_a_regular_step(self) -> None:
@@ -93,6 +119,32 @@ class GridTest(unittest.TestCase):
         steps = grid["timestamp"].diff().dropna().dt.total_seconds().div(60)
         self.assertTrue((steps == config.SAMPLE_INTERVAL_MIN).all())
         self.assertGreater(stats["rows_out"], 0)
+
+
+class ClockTest(unittest.TestCase):
+    """The speed control must not disturb the spacing of the readings.
+
+    A run wound forward has to look like a real one afterwards, otherwise every
+    lag and every rolling window downstream refers to a different real interval.
+    """
+
+    def test_accelerated_run_keeps_the_interval(self) -> None:
+        from soilcast.sensing import collect as collector
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "raw.csv"
+            with contextlib.redirect_stdout(io.StringIO()):
+                written = collector.collect(
+                    hours=1.0, interval_min=30, driver="simulate",
+                    output=path, speed=3600.0,
+                )
+            self.assertEqual(written, 2)
+            with path.open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            stamps = pd.to_datetime([row["timestamp"] for row in rows])
+            self.assertEqual((stamps[1] - stamps[0]).total_seconds(), 1800.0,
+                             "two samples half an hour apart, whatever the speed")
+            self.assertTrue(0.0 <= float(rows[0]["moisture"]) <= 100.0)
 
 
 if __name__ == "__main__":
