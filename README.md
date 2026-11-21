@@ -1,12 +1,10 @@
-# ProjectSem3_2026 — Soil Moisture Monitoring and Forecasting on a Raspberry Pi
+# Soil Moisture Monitoring and Forecasting on a Raspberry Pi
 
 A potted plant, an FC-28 soil moisture probe and a Raspberry Pi. The probe is read
 every 30 minutes for several days without watering, the readings are cleaned, and
 two models forecast the soil moisture 12 hours ahead: a linear regression as the
 baseline and a small LSTM as the model that is supposed to find the daily pattern
 the baseline cannot.
-
-Semester 3 project, NUIST / SETU.
 
 ---
 
