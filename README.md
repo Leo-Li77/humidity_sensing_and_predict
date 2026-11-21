@@ -372,4 +372,4 @@ soilcast/
 
 ## Author
 
-Li Jinyu from NUIST
+Li Jinyu, a student in NUIST
