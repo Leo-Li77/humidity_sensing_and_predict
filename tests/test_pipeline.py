@@ -5,6 +5,7 @@ The split and the lag construction are the two places where a modelling mistake
 looks like a good result, so they are tested rather than assumed. Run with
 
     python -m unittest discover -s tests -v
+    python -m pytest tests -q
 """
 
 from __future__ import annotations
@@ -16,12 +17,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# Run from the project root. The insert is a fallback for an editor that
+# starts the tests from inside tests/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import config
-import preprocess
-import sensor
-from train import split_index
+from soilcast import config                          # noqa: E402
+from soilcast.modelling.train import split_index      # noqa: E402
+from soilcast.processing import preprocess            # noqa: E402
+from soilcast.sensing import sensor                   # noqa: E402
 
 
 class SplitTest(unittest.TestCase):

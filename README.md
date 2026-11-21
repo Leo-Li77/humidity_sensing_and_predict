@@ -1,10 +1,12 @@
-# Soil Moisture Monitoring and Forecasting on a Raspberry Pi
+# ProjectSem3_2026 — Soil Moisture Monitoring and Forecasting on a Raspberry Pi
 
 A potted plant, an FC-28 soil moisture probe and a Raspberry Pi. The probe is read
 every 30 minutes for several days without watering, the readings are cleaned, and
 two models forecast the soil moisture 12 hours ahead: a linear regression as the
 baseline and a small LSTM as the model that is supposed to find the daily pattern
 the baseline cannot.
+
+Semester 3 project, NUIST / SETU.
 
 ---
 
@@ -20,11 +22,11 @@ This matters more than any result below, so it is stated first.
 
 The FC-28 measures soil moisture only. Temperature and relative humidity come from
 the UCI Occupancy Detection set, which records an office room once a minute and is
-reduced here to one mean per hour of the day by `fetch_ambient.py`. The value used
-for a reading is therefore the average for that hour, not the air temperature at
-that instant. `config.AMBIENT_SOURCE` switches this to an on-board DHT sensor or to
-a synthetic curve, and whatever is set is recorded in `models/metrics.json` and
-must be repeated in the report.
+reduced here to one mean per hour of the day by `python -m soilcast ambient`. The
+value used for a reading is therefore the average for that hour, not the air
+temperature at that instant. `config.AMBIENT_SOURCE` switches this to an on-board
+DHT sensor or to a synthetic curve, and whatever is set is recorded in
+`models/metrics.json` and must be repeated in the report.
 
 ## Hardware
 
@@ -45,9 +47,9 @@ The FC-28 has two outputs and they are not equivalent.
   exists to prove the wiring works, not for the experiments.
 
 Calibrate once before the run: hold the probe in air and note the raw ADC count,
-then in a glass of water and note it again. Put both numbers in `config.py` as
-`ADC_DRY` and `ADC_WET`. The defaults are typical for a 3.3 V supply and will be
-wrong for another probe.
+then in a glass of water and note it again. Put both numbers in
+`soilcast/config.py` as `ADC_DRY` and `ADC_WET`. The defaults are typical for a
+3.3 V supply and will be wrong for another probe.
 
 ## Install
 
@@ -57,6 +59,11 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+Everything below runs from the project root and needs no install step beyond the
+packages above, because `python -m soilcast` finds the package in the working
+directory. `pip install -e .` is optional: it puts a plain `soilcast` command on
+the path, so `soilcast train` replaces `python -m soilcast train`.
+
 On the Raspberry Pi, install the sensor libraries as well:
 
 ```bash
@@ -65,10 +72,16 @@ pip install adafruit-blinka adafruit-circuitpython-ads1x15 gpiozero
 
 ## Run
 
+One package, one command per stage:
+
+```bash
+python -m soilcast --help          # the stages and what each one does
+```
+
 The whole pipeline, with the simulator standing in for the probe:
 
 ```bash
-python run_all.py --demo
+python -m soilcast all --demo
 ```
 
 That writes five days of readings with the clock advanced by hand, cleans them,
@@ -83,8 +96,8 @@ to check the install before committing five days of real time to a real run.
 A real run:
 
 ```bash
-python collect.py --driver ads1115 --hours 120 --interval 30
-python run_all.py --reuse
+python -m soilcast collect --driver ads1115 --hours 120 --interval 30
+python -m soilcast all --reuse
 ```
 
 `--hours 120` is five days. The brief asks for at least two, which leaves about 60
@@ -95,23 +108,109 @@ Stage by stage:
 
 | Command | What it does | Writes |
 |---|---|---|
-| `python fetch_ambient.py` | download and reduce the climate data set | `data/external/ambient.csv` |
-| `python collect.py` | read the probe on a fixed interval | `data/raw.csv` |
-| `python preprocess.py` | resample, fill gaps, denoise, build features | `data/processed.csv` |
-| `python analyze.py` | descriptive statistics and diagnostic figures | `figures/fig_series.png` and others |
-| `python train.py` | fit both models, evaluate, plot | `figures/fig_*.png`, `models/metrics.json` |
+| `python -m soilcast ambient` | download and reduce the climate data set | `data/external/ambient.csv` |
+| `python -m soilcast collect` | read the probe on a fixed interval | `data/raw.csv` |
+| `python -m soilcast preprocess` | resample, fill gaps, denoise, build features | `data/processed.csv` |
+| `python -m soilcast analyze` | descriptive statistics and diagnostic figures | `figures/fig_series.png` and others |
+| `python -m soilcast train` | fit both models, evaluate, plot | `figures/fig_*.png`, `models/metrics.json` |
+| `python -m soilcast all` | all five, in order | all of the above |
 
 Each stage reads only the file the previous one wrote, so any stage can be re-run
 on its own after a change.
 
-Flags worth knowing:
+Flags worth knowing (every stage also answers `--help`):
 
 ```
-collect.py    --hours --interval --driver --samples --fast --append
-preprocess.py --input --output --interval
-train.py      --horizon --no-lstm --seq-len
-run_all.py    --demo --reuse --collect HOURS --driver --no-lstm
+collect     --hours --interval --driver --samples --fast --append
+preprocess  --input --output --interval
+analyze     --input --denoise-hours
+train       --input --horizon --no-lstm --seq-len
+all         --demo --reuse --collect HOURS --driver --no-lstm --skip-ambient
+web         --host --port --no-browser --password
 ```
+
+## Web console
+
+Everything above also works without a command line. `python -m soilcast web` serves
+a single page that can start a collection, stop it, import a file, run the
+preprocessing, run the analysis and fit both models, and it keeps a record of
+every run in `data/history.db`.
+
+### Start it
+
+Windows, double-click:
+
+```
+scripts\start_ui.bat
+```
+
+The first run creates `.venv` and installs the packages, which takes a few minutes
+and a few hundred megabytes. After that the file starts the console and opens the
+browser. Nothing is typed.
+
+Raspberry Pi:
+
+```bash
+chmod +x scripts/start_ui.sh
+./scripts/start_ui.sh
+```
+
+### Reach it from another device
+
+The server listens on `0.0.0.0`, so anything on the same network can open it. On
+start it prints the address to use, which is usually `http://192.168.x.x:5057`.
+Five browsers at once is comfortable: the page polls twice every second, and
+waitress serves it from eight threads.
+
+The page is plain HTML, CSS and SVG built in the browser. No CDN is involved, so
+it keeps working with the internet down, which is the situation in most labs.
+
+### Keep it running on the Pi
+
+```bash
+sudo cp deploy/soil-console.service /etc/systemd/system/
+sudo systemctl enable --now soil-console
+sudo systemctl status soil-console
+```
+
+Edit the paths and the user in that file before copying it. With this in place the
+console comes back after a reboot and nobody has to be logged in.
+
+### Putting it on the internet
+
+The five-client requirement is satisfied by a local network, and a home network is
+the safe default. If it really has to be reachable from outside, pick one of these
+rather than forwarding a port to a Flask app:
+
+| Approach | What it gives you | Caveat |
+|---|---|---|
+| Cloudflare Tunnel | a public hostname, no port forwarding, no public IP | needs an account, free tier is enough |
+| Tailscale or ZeroTier | a private network between your own devices only | everyone needs the client installed |
+| Router port forwarding | direct access | needs a public IP, exposes the port to scanning |
+
+Whichever is used, **set a password first**:
+
+```bash
+SOIL_PASSWORD=something-long ./scripts/start_ui.sh
+```
+
+With that variable set, the console answers 401 until the browser prompt is
+satisfied. Without it, anyone who reaches the port can start a collection or
+overwrite `data/raw.csv`.
+
+### What the page does
+
+| Screen | What it is for |
+|---|---|
+| Overview | latest reading, a gauge against the watering threshold, the moisture curve, the ambient curves |
+| Collect | driver, interval and duration; progress; a live stream of samples; stop |
+| Data | the raw table, upload a CSV, download raw or processed, clear with an archive |
+| Analysis | descriptive statistics, a histogram, an autocorrelation of the differenced series |
+| Model | train, then compare MAE, RMSE and R² for the two models |
+| History | every run with its result, filterable, removable |
+
+The charts are drawn as SVG in the browser from the same numbers the scripts
+produce, so the screen and `metrics.json` cannot disagree.
 
 ## Data format
 
@@ -134,7 +233,7 @@ Both CSV files share four columns:
 | `moisture_mean_n` | rolling mean over n samples |
 | `moisture_diff_1`, `_2` | first difference over one and two samples |
 | `hour_sin`, `hour_cos` | time of day, so that 23:00 sits next to 00:00 |
-| `target` | the moisture 12 hours later, used only by `train.py` |
+| `target` | the moisture 12 hours later, used only by the training stage |
 
 ## How the evaluation avoids fooling itself
 
@@ -152,7 +251,8 @@ used by neither side.
 
 **The scaler is fitted on training rows only.** Fitting MinMax on the whole file,
 which the first version of this project did, lets the test range set the training
-inputs. Scaling happens in `train.py` after the split, not in `preprocess.py`.
+inputs. Scaling happens in `soilcast/modelling/train.py` after the split, not in
+`soilcast/processing/preprocess.py`.
 
 **Every feature looks backwards.** Lags, rolling means and differences all read
 rows before the one they sit on. There is no `bfill`, which would copy a future
@@ -165,10 +265,10 @@ band for that reason.
 ## Results
 
 > **The moisture column in these numbers comes from the simulator.** They were
-> produced with `run_all.py --demo`, which stands in for the probe; the temperature
-> and humidity columns are the real data set. Re-run with `--driver ads1115` on a
-> real plant before submitting, and keep `sensor_driver` in `models/metrics.json`
-> consistent with what the report claims.
+> produced with `python -m soilcast all --demo`, which stands in for the probe; the
+> temperature and humidity columns are the real data set. Re-run with
+> `--driver ads1115` on a real plant before submitting, and keep `sensor_driver` in
+> `models/metrics.json` consistent with what the report claims.
 
 Five days at 30-minute intervals, 240 readings, 204 rows with a 12-hour target,
 139 training rows, 41 test rows, and 24 rows discarded as the gap. Lead time 24
@@ -195,9 +295,9 @@ scoring a negative R². Asked for the 12-hour change it stays inside its range, 
 the forecast is the current reading plus that change.
 
 **Use a z-score, not a MinMax rescale.** The brief asks for [0, 1] normalisation and
-`preprocess.py` produces those columns for the figures. For the model input a
-MinMax scale maps the test period to negative numbers, which the network has never
-seen; a z-score only puts it further from the mean.
+`soilcast/processing/preprocess.py` produces those columns for the figures. For the
+model input a MinMax scale maps the test period to negative numbers, which the
+network has never seen; a z-score only puts it further from the mean.
 
 **Give the window a full day.** Twelve hours of history cannot show a complete
 day-night cycle, and the daily pattern is exactly what the LSTM is there to find.
@@ -206,19 +306,42 @@ exercise, at the cost of 24 training windows.
 
 ## Repository layout
 
+Code is in one package, `soilcast/`, and every subpackage is one stage of the
+pipeline. Data and results sit beside it, because they are outputs rather than
+code and should be readable without opening the package.
+
+```
+soilcast/
+├── cli.py            # python -m soilcast <stage>
+├── config.py         # every path, threshold and constant
+├── sensing/          # where the numbers come from
+│   ├── sensor.py       three probe drivers behind one read()
+│   ├── ambient.py      temperature and humidity: table, DHT, or curve
+│   └── collect.py      the sampling loop, the only writer of data/raw.csv
+├── processing/       # raw rows to the two files the models read
+│   ├── ambient_table.py  downloads the climate data set, reduces it to 24 means
+│   ├── preprocess.py     resampling, gap filling, denoising, features
+│   └── analyze.py        descriptive statistics and diagnostic figures
+├── modelling/        # the forecasters and the honest way to score them
+│   ├── networks.py     the LSTM architecture and the ridge baseline
+│   └── train.py        split, scale, fit, evaluate, plot
+└── web/              # the console
+    ├── app.py          one endpoint per stage, JSON only
+    ├── jobs.py         the collection thread and the pipeline subprocesses
+    ├── store.py        data/raw.csv, data/history.db, models/metrics.json
+    ├── serve.py        flags, addresses, waitress
+    ├── templates/      index.html, the single page
+    └── static/         styles, the SVG chart code, the page logic
+```
+
 | Path | Contents |
 |---|---|
-| `config.py` | every path, threshold and model constant |
-| `sensor.py` | three probe drivers behind one `read()` |
-| `ambient.py` | temperature and humidity, from a table, a sensor or a curve |
-| `collect.py` | the sampling loop and the CSV writer |
-| `fetch_ambient.py` | downloads the climate data set and reduces it to hourly means |
-| `preprocess.py` | resampling, gap filling, denoising, feature construction |
-| `analyze.py` | descriptive statistics and diagnostic figures |
-| `models.py` | the LSTM network and the least-squares baseline |
-| `train.py` | split, scale, fit, evaluate, plot |
-| `run_all.py` | the pipeline end to end |
 | `tests/test_pipeline.py` | checks on the split, the lags and the grid |
+| `scripts/start_ui.bat` | double-click launcher for Windows |
+| `scripts/start_ui.sh` | launcher for the Raspberry Pi |
+| `deploy/soil-console.service` | systemd unit so the console survives a reboot |
+| `pyproject.toml` | packaging, and the optional `soilcast` entry point |
+| `requirements.txt` | the laptop install; `requirements-pi.txt` leaves out torch |
 | `data/` | `raw.csv`, `processed.csv`, the quality report and the summary |
 | `figures/` | every figure the report includes |
 | `models/` | `metrics.json` and the saved weights |

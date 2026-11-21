@@ -6,6 +6,10 @@ scikit-learn>=1.5
 matplotlib>=3.9
 torch>=2.5
 
+# web console
+flask>=3.0
+waitress>=3.0
+
 # Sensor side, Raspberry Pi only. Install separately on the board:
 #   pip install adafruit-blinka adafruit-circuitpython-ads1x15 gpiozero
 #   pip install adafruit-circuitpython-dht    # only if a DHT sensor is used
